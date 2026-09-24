@@ -2054,6 +2054,15 @@
         box-shadow: 0 0 0 4px rgba(63,81,181,0.1);
     }
 </style>
+
+<link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#0a0a1a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Shadow Tour BD">
+<link rel="apple-touch-icon" href="./icon-192.png">
+
 </head>
 <body>
 
@@ -2643,39 +2652,18 @@
         </div>
     </section>
 
-    <!-- DEVELOPER -->
-    <section id="developer-view" class="app-section" style="background: #fff; min-height: 100vh;">
-        <div class="back-nav" onclick="window.showTab('profile')" style="background: transparent; border: none; padding: 25px 20px; justify-content: flex-start; align-items: center; gap: 15px;">
-            <i class="fas fa-chevron-left" style="font-size: 22px; color: #000;"></i> 
-            <span style="font-size: 20px; font-weight: 800; color: #000;">Developer Profile</span>
+    <!-- DEVELOPER - ADMIN CONTROLLED -->
+    <section id="developer-view" class="app-section" style="background:#fff; min-height:100vh;">
+        <div class="back-nav" onclick="window.handleAppBack()" style="background:transparent; border:none; padding:25px 20px; justify-content:flex-start; align-items:center; gap:15px;">
+            <i class="fas fa-chevron-left" style="font-size:22px; color:#000;"></i>
+            <span style="font-size:20px; font-weight:800; color:#000;">Developer</span>
         </div>
-        <div class="dev-page" style="padding: 0 25px;">
-            <div style="font-size: 22px; font-weight: 700; color: #4a4a4a; margin-bottom: 20px; text-align: left;">
-                টুর্নামেন্ট অ্যাপ বিক্রি হচ্ছে
+
+        <div id="developer-content" style="padding:0 20px 30px;">
+            <div style="text-align:center; padding:45px 20px; color:#999;">
+                <i class="fas fa-spinner fa-spin" style="font-size:28px; margin-bottom:12px;"></i>
+                <div>Loading...</div>
             </div>
-            <div style="font-size: 15px; font-weight: 600; color: #4a4a4a; line-height: 1.5; margin-bottom: 25px; text-align: left;">
-                আমরা তৈরি করে দিচ্ছি আপনার নিজস্ব Android Tournament App এবং Website Tournament System।
-            </div>
-            <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 30px;">
-                <div style="display: flex; align-items: center; gap: 10px; font-weight: 700; color: #333; font-size: 15px;">
-                    <i class="fas fa-check" style="color: #333; font-size: 16px;"></i> Automatic Payment System
-                </div>
-                <div style="display: flex; align-items: center; gap: 10px; font-weight: 700; color: #333; font-size: 15px;">
-                    <i class="fas fa-check" style="color: #333; font-size: 16px;"></i> Admin System
-                </div>
-                <div style="display: flex; align-items: center; gap: 10px; font-weight: 700; color: #333; font-size: 15px;">
-                    <i class="fas fa-check" style="color: #333; font-size: 16px;"></i> Moderator Panel
-                </div>
-                <div style="display: flex; align-items: center; gap: 10px; font-weight: 700; color: #333; font-size: 15px;">
-                    <i class="fas fa-check" style="color: #333; font-size: 16px;"></i> সম্পূর্ণ কাস্টম ডিজাইন
-                </div>
-            </div>
-            <div style="font-size: 16px; font-weight: 800; color: #333; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
-                <span style="font-size: 20px;">💰</span> শুরু মাত্র ২৫,০০০ টাকা থেকে!
-            </div>
-            <a href="https://t.me/DV_IASAN" target="_blank" style="font-size: 16px; font-weight: 700; color: #673AB7; text-decoration: underline; display: block;">
-                https://t.me/DV_IASAN
-            </a>
         </div>
     </section>
 
@@ -2924,6 +2912,9 @@
             calculateJoinedMatches();
         });
         
+        // Developer settings (admin controlled)
+        loadDeveloperSettings();
+
         // Settings
         onValue(ref(db, 'app_settings'), s => {
             const d = s.val();
@@ -2980,6 +2971,115 @@
         });
 
         startTimers();
+    }
+
+    // ===== ADMIN CONTROLLED DEVELOPER PAGE =====
+    function escapeDeveloperHtml(value) {
+        return String(value ?? '').replace(/[&<>"']/g, c => ({
+            '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
+        }[c]));
+    }
+
+    function safeDeveloperLink(value) {
+        const raw = String(value ?? '').trim();
+        if(!raw) return '';
+        // Allow normal web links plus common app/deep links.
+        if(/^(https?:\/\/|tg:\/\/|mailto:|tel:)/i.test(raw)) return raw;
+        // If admin entered a bare domain, make it clickable as HTTPS.
+        if(/^[a-z0-9.-]+\.[a-z]{2,}(\/.*)?$/i.test(raw)) return 'https://' + raw;
+        return '';
+    }
+
+    function openDeveloperLink(link) {
+        const url = safeDeveloperLink(link);
+        if(!url) {
+            showToast('Link is not available.', 'error');
+            return;
+        }
+        try {
+            window.open(url, '_blank');
+        } catch(e) {
+            window.location.href = url;
+        }
+    }
+
+    function renderDeveloperPage(data) {
+        const box = document.getElementById('developer-content');
+        if(!box) return;
+
+        const settings = data || {};
+        if(settings.enabled === false) {
+            box.innerHTML = `
+                <div style="text-align:center;padding:70px 20px;color:#999;">
+                    <i class="fas fa-code" style="font-size:42px;margin-bottom:15px;opacity:.45;"></i>
+                    <div style="font-size:16px;font-weight:700;">Developer information is currently unavailable.</div>
+                </div>`;
+            return;
+        }
+
+        const items = settings.items ? Object.entries(settings.items) : [];
+        const activeItems = items
+            .map(([key, item]) => ({key, ...(item || {})}))
+            .filter(item => item.enabled !== false);
+
+        if(!activeItems.length) {
+            box.innerHTML = `
+                <div style="text-align:center;padding:70px 20px;color:#999;">
+                    <i class="fas fa-code" style="font-size:42px;margin-bottom:15px;opacity:.45;"></i>
+                    <div style="font-size:16px;font-weight:700;">No developer information added yet.</div>
+                </div>`;
+            return;
+        }
+
+        box.innerHTML = activeItems.map(item => {
+            const title = escapeDeveloperHtml(item.title || 'Developer');
+            const body = escapeDeveloperHtml(item.text || '').replace(/\n/g, '<br>');
+            const buttonText = escapeDeveloperHtml(item.buttonText || 'Open Link');
+            const link = safeDeveloperLink(item.link || '');
+
+            return `
+                <div style="background:#fff;border:1px solid #eee;border-radius:16px;padding:18px;margin-bottom:14px;box-shadow:0 3px 12px rgba(0,0,0,.06);">
+                    <div style="font-size:20px;font-weight:800;color:#333;margin-bottom:10px;">
+                        ${title}
+                    </div>
+                    ${body ? `<div style="font-size:14px;font-weight:500;color:#555;line-height:1.65;white-space:normal;">${body}</div>` : ''}
+                    ${link ? `
+                        <button type="button"
+                            onclick="window.openDeveloperLink(${JSON.stringify(link).replace(/</g,'\\u003c')})"
+                            style="margin-top:15px;width:100%;border:0;border-radius:10px;padding:12px 15px;background:#3F51B5;color:#fff;font-size:14px;font-weight:800;">
+                            <i class="fas fa-external-link-alt"></i> ${buttonText}
+                        </button>` : ''}
+                </div>`;
+        }).join('');
+    }
+
+    function loadDeveloperSettings() {
+        const box = document.getElementById('developer-content');
+        if(!box) return;
+
+        onValue(ref(db, 'app_settings/developer_items'), snap => {
+            const raw = snap.val() || {};
+
+            // Admin panel saves items directly under developer_items/<key>.
+            // Convert that format to the renderer's {items:{...}} format.
+            // Also keep compatibility with the older {items:{...}} format.
+            let normalized = raw;
+            if(!raw.items && typeof raw === 'object') {
+                const directItems = {};
+                Object.entries(raw).forEach(([key, item]) => {
+                    if(item && typeof item === 'object' &&
+                       ('title' in item || 'text' in item || 'link' in item || 'buttonText' in item)) {
+                        directItems[key] = item;
+                    }
+                });
+                normalized = { enabled: raw.enabled !== false, items: directItems };
+            }
+
+            renderDeveloperPage(normalized);
+        }, error => {
+            console.error('Developer settings load error:', error);
+            renderDeveloperPage(null);
+        });
     }
 
     // ===== RENDER RULES PAGE =====
@@ -3677,6 +3777,7 @@
                 document.getElementById('ep-username').value = currentUser.displayName || '';
                 document.getElementById('ep-email').value = currentUser.email || '';
             } else if(page === 'rules') renderRulesPage();
+            else if(page === 'developer') loadDeveloperSettings();
         }
     }
 
@@ -4601,5 +4702,62 @@
     });
 
 </script>
+
+<!-- Shadow Tour BD PWA install -->
+<div id="pwa-install-bar" style="display:none;position:fixed;left:12px;right:12px;bottom:82px;z-index:30000;background:#11152b;color:#fff;border:1px solid rgba(255,215,0,.35);border-radius:16px;padding:12px 14px;box-shadow:0 10px 35px rgba(0,0,0,.3);align-items:center;gap:10px;">
+  <div style="width:40px;height:40px;border-radius:10px;overflow:hidden;flex:0 0 40px;background:#fff;">
+    <img src="./icon-192.png" alt="Shadow Tour BD" style="width:100%;height:100%;object-fit:cover;">
+  </div>
+  <div style="flex:1;min-width:0;">
+    <div style="font-weight:800;font-size:13px;">Shadow Tour BD App</div>
+    <div id="pwa-install-text" style="font-size:11px;opacity:.72;margin-top:2px;">ফোনে অ্যাপ হিসেবে Install করুন</div>
+  </div>
+  <button id="pwa-install-btn" type="button" style="border:0;border-radius:10px;background:#ff9800;color:#111;font-weight:900;padding:9px 12px;font-size:12px;">INSTALL</button>
+  <button id="pwa-install-close" type="button" aria-label="Close" style="border:0;background:transparent;color:#aaa;font-size:20px;padding:2px 5px;">×</button>
+</div>
+<script>
+(function(){
+  let deferredPrompt=null;
+  const bar=document.getElementById('pwa-install-bar');
+  const btn=document.getElementById('pwa-install-btn');
+  const close=document.getElementById('pwa-install-close');
+  const text=document.getElementById('pwa-install-text');
+  const standalone=()=>window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone===true;
+  const show=(msg)=>{
+    if(standalone()) return;
+    if(text&&msg) text.textContent=msg;
+    if(bar) bar.style.display='flex';
+  };
+  window.addEventListener('beforeinstallprompt',e=>{
+    e.preventDefault(); deferredPrompt=e; show('ফোনে অ্যাপ হিসেবে Install করুন');
+  });
+  window.addEventListener('appinstalled',()=>{
+    deferredPrompt=null; if(bar) bar.style.display='none';
+  });
+  if(btn) btn.addEventListener('click',async()=>{
+    if(deferredPrompt){
+      deferredPrompt.prompt();
+      try{await deferredPrompt.userChoice;}catch(e){}
+      deferredPrompt=null; if(bar) bar.style.display='none'; return;
+    }
+    const ios=/iphone|ipad|ipod/i.test(navigator.userAgent);
+    show(ios?'Safari: Share → Add to Home Screen চাপুন':'Chrome: ⋮ → Install app / Add to Home screen চাপুন');
+  });
+  if(close) close.addEventListener('click',()=>{
+    if(bar) bar.style.display='none';
+    try{sessionStorage.setItem('shadow_pwa_install_closed','1')}catch(e){}
+  });
+  setTimeout(()=>{
+    if(!standalone()&&!deferredPrompt){
+      let closed=false; try{closed=sessionStorage.getItem('shadow_pwa_install_closed')==='1'}catch(e){}
+      if(!closed) show();
+    }
+  },3500);
+  if('serviceWorker' in navigator){
+    window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(console.warn));
+  }
+})();
+</script>
+
 </body>
 </html>
